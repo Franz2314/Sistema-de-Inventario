@@ -1,0 +1,10 @@
+build/
+dist/
+nbbuild/
+nbdist/
+nbproject/private/
+nbproject/private.*
+nbproject/private
+*.class
+*.log
+*.tmp
