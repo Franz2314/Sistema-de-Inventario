@@ -1,16 +1,42 @@
 import javax.swing.JOptionPane;
 import javax.swing.table.DefaultTableModel;
 import java.util.List;
+import estructuras.ArbolBinarioBusqueda;
+import estructuras.ArregloEstatico;
+import estructuras.Cola;
+import estructuras.ListaEnlazada;
+import estructuras.MatrizAlmacen;
+import estructuras.Pila;
+import modelo.DetalleBoleta;
 import modelo.Producto;
+import modelo.Proveedor;
 import Conexion.ProductoDAO;
 /**
  *
  * @author USUARIO
  */
 public class Sistema extends javax.swing.JFrame {
+    private static final int CAPACIDAD_PRODUCTOS = 100;
+    private static final int CAPACIDAD_PROVEEDORES = 50;
+    private static final int ESTANTES = 5;
+    private static final int POSICIONES_POR_ESTANTE = 6;
+    private static final int STOCK_MINIMO = 5;
+
     ProductoDAO dao = new ProductoDAO();
     DefaultTableModel modeloProveedores;
-    
+    // Unidad 1: arreglos unidimensionales de objetos y matriz del almacén
+    ArregloEstatico<Producto> inventario = new ArregloEstatico<>(CAPACIDAD_PRODUCTOS);
+    ArregloEstatico<Proveedor> proveedores = new ArregloEstatico<>(CAPACIDAD_PROVEEDORES);
+    MatrizAlmacen almacen = new MatrizAlmacen(ESTANTES, POSICIONES_POR_ESTANTE);
+    // Unidad 2: lista enlazada con las líneas de la boleta
+    ListaEnlazada<DetalleBoleta> detalleBoleta = new ListaEnlazada<>();
+    // Unidad 3: pila para deshacer líneas eliminadas y cola de productos por reponer
+    Pila<DetalleBoleta> lineasEliminadas = new Pila<>();
+    Cola<Producto> reposicion = new Cola<>();
+    // Unidad 4: árbol binario de búsqueda para encontrar productos por id
+    ArbolBinarioBusqueda<Producto> indiceProductos =
+            new ArbolBinarioBusqueda<>(java.util.Comparator.comparingInt(Producto::getId));
+
 public Sistema() {
     initComponents();
     setLocationRelativeTo(null);
@@ -24,7 +50,7 @@ public Sistema() {
     tablaProductos1.setModel(new DefaultTableModel(
         new Object[][] {},
         new String[] {
-            "ID", "NOMBRE", "PRECIO", "STOCK"
+            "ID", "NOMBRE", "PRECIO", "STOCK", "UBICACIÓN"
         }
     ));
     modeloProveedores = new DefaultTableModel(
@@ -34,33 +60,26 @@ public Sistema() {
         }
     );
     tablaProveedores.setModel(modeloProveedores);
+    configurarDeshacerBoleta();
     cargarProductos();
-    
+    avisarReposicion();
 }
-private void configurarTablas() {
 
-    DefaultTableModel modeloProductos =
-            new DefaultTableModel(
-                new Object[][]{},
-                new String[]{
-                    "ID",
-                    "NOMBRE",
-                    "PRECIO",
-                    "STOCK"
-                }
-            );
-    tablaProductos.setModel(modeloProductos);
-    DefaultTableModel modeloAlmacen =
-            new DefaultTableModel(
-                new Object[][]{},
-                new String[]{
-                    "ID",
-                    "NOMBRE",
-                    "PRECIO",
-                    "STOCK"
-                }
-            );
-    tablaProductos1.setModel(modeloAlmacen);
+/** Ctrl+Z sobre la tabla de la boleta devuelve la última línea eliminada. */
+private void configurarDeshacerBoleta() {
+    tablaBoleta.setToolTipText("Ctrl+Z deshace la última línea eliminada");
+    tablaBoleta.getInputMap(javax.swing.JComponent.WHEN_FOCUSED)
+            .put(javax.swing.KeyStroke.getKeyStroke("ctrl Z"), "deshacerLinea");
+    tablaBoleta.getActionMap().put("deshacerLinea", new javax.swing.AbstractAction() {
+        @Override
+        public void actionPerformed(java.awt.event.ActionEvent e) {
+            DetalleBoleta linea = lineasEliminadas.desapilar();
+            if (linea != null) {
+                detalleBoleta.insertarFinal(linea);
+                mostrarBoleta();
+            }
+        }
+    });
 }
     /**
      * This method is called from within the constructor to initialize the form.
@@ -830,35 +849,30 @@ private void configurarTablas() {
                 "Ingrese un ID o nombre de producto.");
         return;
     }
-    try {
-        if (texto.matches("\\d+")) {
-            int id = Integer.parseInt(texto);
-            Producto p = dao.buscarPorId(id);
-            if (p != null) {
-                List<Producto> resultado = new java.util.ArrayList<>();
-                resultado.add(p);
-                cargarTablaAlmacen(resultado);
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        "No se encontró un producto con ID: " + id);
-                cargarTablaAlmacen(new java.util.ArrayList<>());
-            }
+    ArregloEstatico<Producto> resultado = new ArregloEstatico<>(CAPACIDAD_PRODUCTOS);
+    if (texto.matches("\\d+")) {
+        int id = Integer.parseInt(texto);
+        Producto encontrado = indiceProductos.buscar(new Producto(id, "", 0, 0));
+        if (encontrado != null) {
+            resultado.insertar(encontrado);
         } else {
-            List<Producto> resultado =
-                   dao.buscarPorNombre(texto);
-            if (resultado.isEmpty()) {
-                JOptionPane.showMessageDialog(this,
-                        "No se encontraron productos con el nombre: "
-                        + texto);
-            }
-            cargarTablaAlmacen(resultado);
+            JOptionPane.showMessageDialog(this,
+                    "No se encontró un producto con ID: " + id);
         }
-    } catch (NumberFormatException e) {
-        JOptionPane.showMessageDialog(this,
-                "El ID ingresado no es válido.",
-                "Error",
-                JOptionPane.ERROR_MESSAGE);
+    } else {
+        String filtro = texto.toLowerCase();
+        inventario.recorrer(p -> {
+            if (p.getNombre().toLowerCase().contains(filtro)) {
+                resultado.insertar(p);
+            }
+        });
+        if (resultado.estaVacio()) {
+            JOptionPane.showMessageDialog(this,
+                    "No se encontraron productos con el nombre: "
+                    + texto);
+        }
     }
+    mostrarEnAlmacen(resultado);
     }//GEN-LAST:event_txtBuscarActionPerformed
 
     private void jTextField1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_jTextField1ActionPerformed
@@ -869,8 +883,8 @@ private void configurarTablas() {
         int fila = tablaBoleta.getSelectedRow();
 
         if (fila >= 0) {
-            DefaultTableModel modelo = (DefaultTableModel) tablaBoleta.getModel();
-            modelo.removeRow(fila);
+            lineasEliminadas.apilar(detalleBoleta.eliminar(fila));
+            mostrarBoleta();
         } else {
             JOptionPane.showMessageDialog(this,
                 "Seleccione una fila para eliminar.",
@@ -905,18 +919,12 @@ private void configurarTablas() {
             return;
         }
 
-        double total = cantidad * precio;
-
-        DefaultTableModel modelo =
-                (DefaultTableModel) tablaBoleta.getModel();
-
-        modelo.addRow(new Object[]{
-            txtCodigo.getText().trim(),
-            txtDescripcion.getText().trim(),
-            cantidad,
-            precio,
-            total
-        });
+        detalleBoleta.insertarFinal(new DetalleBoleta(
+                txtCodigo.getText().trim(),
+                txtDescripcion.getText().trim(),
+                cantidad,
+                precio));
+        mostrarBoleta();
 
         // Limpiar campos
         txtCodigo.setText("");
@@ -950,7 +958,8 @@ private void configurarTablas() {
     );
     if (confirmar == JOptionPane.YES_OPTION) {
 
-        modeloProveedores.removeRow(fila);
+        proveedores.eliminar(fila);
+        mostrarProveedores();
         JOptionPane.showMessageDialog(this,
                 "Proveedor eliminado correctamente.",
                 "Éxito",
@@ -980,10 +989,16 @@ private void configurarTablas() {
                 JOptionPane.WARNING_MESSAGE);
         return;
     }
-    modeloProveedores.setValueAt(id, fila, 0);
-    modeloProveedores.setValueAt(nombre, fila, 1);
-    modeloProveedores.setValueAt(telefono, fila, 2);
-    modeloProveedores.setValueAt(correo, fila, 3);
+    int existente = proveedores.buscar(p -> p.getId().equals(id));
+    if (existente >= 0 && existente != fila) {
+        JOptionPane.showMessageDialog(this,
+                "Ya existe otro proveedor con el ID " + id + ".",
+                "Advertencia",
+                JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+    proveedores.actualizar(fila, new Proveedor(id, nombre, telefono, correo));
+    mostrarProveedores();
     JOptionPane.showMessageDialog(this,
             "Proveedor actualizado correctamente.",
             "Éxito",
@@ -999,16 +1014,11 @@ private void configurarTablas() {
                 JOptionPane.WARNING_MESSAGE);
         return;
     }
-    String nombre =
-            modeloProveedores.getValueAt(fila, 1).toString();
-    String telefono =
-            modeloProveedores.getValueAt(fila, 2).toString();
-    String correo =
-            modeloProveedores.getValueAt(fila, 3).toString();
+    Proveedor proveedor = proveedores.obtener(fila);
     JOptionPane.showMessageDialog(this,
-            "Proveedor: " + nombre +
-            "\n📱Teléfono: " + telefono +
-            "\n📧Correo: " + correo,
+            "Proveedor: " + proveedor.getNombre() +
+            "\n📱Teléfono: " + proveedor.getTelefono() +
+            "\n📧Correo: " + proveedor.getCorreo(),
             "Información del proveedor",
             JOptionPane.INFORMATION_MESSAGE);
     }//GEN-LAST:event_btnContactarActionPerformed
@@ -1027,14 +1037,25 @@ private void configurarTablas() {
         return;
     }
     if (id.isEmpty()) {
-        id = String.valueOf(modeloProveedores.getRowCount() + 1);
+        id = String.valueOf(proveedores.tamano() + 1);
     }
-    modeloProveedores.addRow(new Object[]{
-        id,
-        nombre,
-        telefono,
-        correo
-    });
+    final String idNuevo = id;
+    if (proveedores.buscar(p -> p.getId().equals(idNuevo)) >= 0) {
+        JOptionPane.showMessageDialog(this,
+                "Ya existe un proveedor con el ID " + idNuevo + ".",
+                "Advertencia",
+                JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+    if (!proveedores.insertar(new Proveedor(idNuevo, nombre, telefono, correo))) {
+        JOptionPane.showMessageDialog(this,
+                "No hay espacio: se alcanzó el máximo de "
+                + proveedores.capacidad() + " proveedores.",
+                "Advertencia",
+                JOptionPane.WARNING_MESSAGE);
+        return;
+    }
+    mostrarProveedores();
     JOptionPane.showMessageDialog(this,
             "Proveedor agregado correctamente.",
             "Éxito",
@@ -1045,23 +1066,16 @@ private void configurarTablas() {
     int fila = tablaProveedores.getSelectedRow();
 
     if (fila >= 0) {
-        txtId1.setText(
-                modeloProveedores.getValueAt(fila, 0).toString()
-        );
-        txtNombre1.setText(
-                modeloProveedores.getValueAt(fila, 1).toString()
-        );
-        txtTelefono.setText(
-                modeloProveedores.getValueAt(fila, 2).toString()
-        );
-        txtCorreo.setText(
-                modeloProveedores.getValueAt(fila, 3).toString()
-        );
+        Proveedor proveedor = proveedores.obtener(fila);
+        txtId1.setText(proveedor.getId());
+        txtNombre1.setText(proveedor.getNombre());
+        txtTelefono.setText(proveedor.getTelefono());
+        txtCorreo.setText(proveedor.getCorreo());
     }
     }//GEN-LAST:event_tablaProveedoresMouseClicked
 
     private void txtNombre1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtNombre1ActionPerformed
-        // TODO add your handling code here:
+        // Sin acción.
     }//GEN-LAST:event_txtNombre1ActionPerformed
 
     private void btnEliminar1ActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnEliminar1ActionPerformed
@@ -1074,7 +1088,12 @@ int fila = tablaProductos.getSelectedRow();
     int id = Integer.parseInt(
             tablaProductos.getValueAt(fila, 0).toString()
     );
-    dao.eliminar(id);
+    try {
+        dao.eliminar(id);
+    } catch (java.sql.SQLException e) {
+        errorBD("eliminar el producto", e);
+        return;
+    }
     cargarProductos();
     limpiarCampos();
     JOptionPane.showMessageDialog(this,
@@ -1089,24 +1108,24 @@ int fila = tablaProductos.getSelectedRow();
         return;
     }
     try {
-        int id = Integer.parseInt(txtId.getText());
+        // El ID sale de la fila seleccionada, no del campo de texto, para no editar otro producto.
+        int id = Integer.parseInt(tablaProductos.getValueAt(fila, 0).toString());
         String nombre = txtNombre.getText().trim();
-        double precio = Double.parseDouble(txtPrecio.getText());
-        int stock = Integer.parseInt(txtStock.getText());
-        Producto p = new Producto(
-                id,
-                nombre,
-                precio,
-                stock
-        );
-        dao.actualizar(p);
+        double precio = Double.parseDouble(txtPrecio.getText().trim());
+        int stock = Integer.parseInt(txtStock.getText().trim());
+        if (!datosProductoValidos(nombre, precio, stock)) {
+            return;
+        }
+        dao.actualizar(new Producto(id, nombre, precio, stock));
         cargarProductos();
         limpiarCampos();
         JOptionPane.showMessageDialog(this,
                 "Producto actualizado correctamente.");
     } catch (NumberFormatException e) {
         JOptionPane.showMessageDialog(this,
-                "ID, precio y stock deben ser números.");
+                "Precio y stock deben ser números.");
+    } catch (java.sql.SQLException e) {
+        errorBD("actualizar el producto", e);
     }
     }//GEN-LAST:event_btnEditar1ActionPerformed
 
@@ -1115,18 +1134,10 @@ int fila = tablaProductos.getSelectedRow();
         String nombre = txtNombre.getText().trim();
         double precio = Double.parseDouble(txtPrecio.getText().trim());
         int stock = Integer.parseInt(txtStock.getText().trim());
-        if (nombre.isEmpty()) {
-            JOptionPane.showMessageDialog(this,
-                    "Ingrese el nombre del producto.");
+        if (!datosProductoValidos(nombre, precio, stock)) {
             return;
         }
-        Producto p = new Producto(
-                0,
-                nombre,
-                precio,
-                stock
-        );
-        dao.insertar(p);
+        dao.insertar(new Producto(0, nombre, precio, stock));
         cargarProductos();
         limpiarCampos();
         JOptionPane.showMessageDialog(this,
@@ -1136,6 +1147,8 @@ int fila = tablaProductos.getSelectedRow();
                 "Precio y stock deben ser números.",
                 "Error",
                 JOptionPane.ERROR_MESSAGE);
+    } catch (java.sql.SQLException e) {
+        errorBD("agregar el producto", e);
     }
     }//GEN-LAST:event_btnAgregar1ActionPerformed
 
@@ -1168,24 +1181,16 @@ int fila = tablaProductos.getSelectedRow();
     }//GEN-LAST:event_AlmacenActionPerformed
 
     private void tablaProductos1MouseClicked(java.awt.event.MouseEvent evt) {//GEN-FIRST:event_tablaProductos1MouseClicked
-    int fila = tablaProductos1.getSelectedRow();
-    if (fila >= 0) {
-        System.out.println("Producto seleccionado en almacén.");
-    }
     }//GEN-LAST:event_tablaProductos1MouseClicked
 
     private void txtCodigoActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_txtCodigoActionPerformed
-        // TODO add your handling code here:
+        // Sin acción.
     }//GEN-LAST:event_txtCodigoActionPerformed
 
     private void btnTotalActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_btnTotalActionPerformed
-    double suma = 0;
-
-    for (int i = 0; i < tablaBoleta.getRowCount(); i++) {
-        Number valor = (Number) tablaBoleta.getValueAt(i, 4);
-        suma += valor.doubleValue();
-    }
-    lblTotal.setText(String.format("S/ %.2f", suma));
+    double[] suma = {0};
+    detalleBoleta.recorrer(linea -> suma[0] += linea.getSubtotal());
+    lblTotal.setText(String.format("S/ %.2f", suma[0]));
     }//GEN-LAST:event_btnTotalActionPerformed
 
     /**
@@ -1290,67 +1295,135 @@ int fila = tablaProductos.getSelectedRow();
     private javax.swing.JTextField txtTelefono;
     // End of variables declaration//GEN-END:variables
 
-private void listarProductos() {
-    cargarProductos();
-}
-private void cargarTablaProductos(List<Producto> productos) {
-
-    DefaultTableModel modeloTabla =
-            (DefaultTableModel) tablaProductos.getModel();
-
-    modeloTabla.setRowCount(0);
-
-    for (Producto p : productos) {
-
-        modeloTabla.addRow(new Object[]{
-            p.getId(),
-            p.getNombre(),
-            p.getPrecio(),
-            p.getStock()
-        });
-    }
-}
-private void cargarTablaAlmacen(List<Producto> productos) {
-    DefaultTableModel modeloAlmacen =
-            (DefaultTableModel) tablaProductos1.getModel();
-    modeloAlmacen.setRowCount(0);
-    for (Producto p : productos) {
-        modeloAlmacen.addRow(new Object[]{
-            p.getId(),
-            p.getNombre(),
-            p.getPrecio(),
-            p.getStock()
-        });
-    }
-}
+/** Recarga el inventario desde la BD al arreglo en memoria y refresca las tablas. */
 private void cargarProductos() {
-    List<Producto> lista = dao.listar();
-    DefaultTableModel modeloProductos =
-            (DefaultTableModel) tablaProductos.getModel();
-
-    modeloProductos.setRowCount(0);
-
-    for (Producto p : lista) {
-        modeloProductos.addRow(new Object[]{
-            p.getId(),
-            p.getNombre(),
-            p.getPrecio(),
-            p.getStock()
-        });
+    inventario.limpiar();
+    List<Producto> lista;
+    try {
+        lista = dao.listar();
+    } catch (java.sql.SQLException e) {
+        lista = new java.util.ArrayList<>();
+        errorBD("cargar los productos", e);
     }
-    DefaultTableModel modeloAlmacen =
-            (DefaultTableModel) tablaProductos1.getModel();
-
-    modeloAlmacen.setRowCount(0);
-
     for (Producto p : lista) {
-        modeloAlmacen.addRow(new Object[]{
-            p.getId(),
-            p.getNombre(),
-            p.getPrecio(),
-            p.getStock()
-        });
+        if (!inventario.insertar(p)) {
+            JOptionPane.showMessageDialog(this,
+                    "El inventario en memoria admite " + inventario.capacidad()
+                    + " productos. Los demás no se mostrarán.",
+                    "Advertencia",
+                    JOptionPane.WARNING_MESSAGE);
+            break;
+        }
     }
+    int[] ids = new int[inventario.tamano()];
+    for (int i = 0; i < ids.length; i++) {
+        ids[i] = inventario.obtener(i).getId();
+    }
+    almacen.sincronizar(ids);
+    indiceProductos.limpiar();
+    insertarBalanceado(0, inventario.tamano() - 1);
+    reposicion.limpiar();
+    inventario.recorrer(p -> {
+        if (p.getStock() <= STOCK_MINIMO) {
+            reposicion.encolar(p);
+        }
+    });
+    mostrarEnProductos(inventario);
+    mostrarEnAlmacen(inventario);
+}
+
+/** El inventario llega ordenado por id (ORDER BY id): insertar por el medio evita degenerar el árbol. */
+private void insertarBalanceado(int inicio, int fin) {
+    if (inicio > fin) {
+        return;
+    }
+    int medio = (inicio + fin) / 2;
+    indiceProductos.insertar(inventario.obtener(medio));
+    insertarBalanceado(inicio, medio - 1);
+    insertarBalanceado(medio + 1, fin);
+}
+
+/** Vacía la cola de reposición en orden de detección y avisa qué productos hay que reponer. */
+private void avisarReposicion() {
+    if (reposicion.estaVacia()) {
+        return;
+    }
+    StringBuilder mensaje = new StringBuilder("Productos con stock de " + STOCK_MINIMO
+            + " unidades o menos (en orden de reposición):\n");
+    while (!reposicion.estaVacia()) {
+        Producto p = reposicion.desencolar();
+        mensaje.append("\n• ").append(p.getNombre()).append(" (stock ").append(p.getStock()).append(")");
+    }
+    JOptionPane.showMessageDialog(this, mensaje.toString(),
+            "Reposición pendiente", JOptionPane.WARNING_MESSAGE);
+}
+
+private void mostrarBoleta() {
+    DefaultTableModel modelo = (DefaultTableModel) tablaBoleta.getModel();
+    modelo.setRowCount(0);
+    detalleBoleta.recorrer(linea -> modelo.addRow(new Object[]{
+        linea.getCodigo(),
+        linea.getDescripcion(),
+        linea.getCantidad(),
+        linea.getPrecio(),
+        linea.getSubtotal()
+    }));
+}
+
+private void mostrarEnProductos(ArregloEstatico<Producto> productos) {
+    DefaultTableModel modelo = (DefaultTableModel) tablaProductos.getModel();
+    modelo.setRowCount(0);
+    productos.recorrer(p -> modelo.addRow(new Object[]{
+        p.getId(),
+        p.getNombre(),
+        p.getPrecio(),
+        p.getStock()
+    }));
+}
+
+private void mostrarEnAlmacen(ArregloEstatico<Producto> productos) {
+    DefaultTableModel modelo = (DefaultTableModel) tablaProductos1.getModel();
+    modelo.setRowCount(0);
+    productos.recorrer(p -> modelo.addRow(new Object[]{
+        p.getId(),
+        p.getNombre(),
+        p.getPrecio(),
+        p.getStock(),
+        almacen.etiqueta(p.getId())
+    }));
+}
+
+private void mostrarProveedores() {
+    modeloProveedores.setRowCount(0);
+    proveedores.recorrer(p -> modeloProveedores.addRow(new Object[]{
+        p.getId(),
+        p.getNombre(),
+        p.getTelefono(),
+        p.getCorreo()
+    }));
+}
+
+private boolean datosProductoValidos(String nombre, double precio, int stock) {
+    String error = null;
+    if (nombre.isEmpty()) {
+        error = "Ingrese el nombre del producto.";
+    } else if (Double.isNaN(precio) || Double.isInfinite(precio) || precio <= 0) {
+        error = "El precio debe ser mayor que 0.";
+    } else if (stock < 0) {
+        error = "El stock no puede ser negativo.";
+    }
+    if (error != null) {
+        JOptionPane.showMessageDialog(this, error, "Advertencia", JOptionPane.WARNING_MESSAGE);
+        return false;
+    }
+    return true;
+}
+
+private void errorBD(String accion, java.sql.SQLException e) {
+    JOptionPane.showMessageDialog(this,
+            "No se pudo " + accion + ".\nRevise que PostgreSQL esté encendido y que la base "
+            + "'inventario' exista.\n\nDetalle: " + e.getMessage(),
+            "Error de base de datos", JOptionPane.ERROR_MESSAGE);
 }
 
 private void limpiarCampos() {
@@ -1359,8 +1432,4 @@ private void limpiarCampos() {
     txtPrecio.setText("");
     txtStock.setText("");
 }
-
-    private void cargarTablaAlmacen() {
-        throw new UnsupportedOperationException("Not supported yet."); // Generated from nbfs://nbhost/SystemFileSystem/Templates/Classes/Code/GeneratedMethodBody
-    }
 }

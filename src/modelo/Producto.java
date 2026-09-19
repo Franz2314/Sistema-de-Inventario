@@ -7,27 +7,15 @@ public class Producto {
     private double precio;
     private int stock;
 
-    // Constructor vacío
     public Producto() {
     }
 
-    // Constructor principal
     public Producto(int id, String nombre, double precio, int stock) {
         this.id = id;
         this.nombre = nombre;
         this.precio = precio;
         this.stock = stock;
     }
-
-    // Constructor usado por ProductoDAO
-    public Producto(String codigo, String nombre, int cantidad, double precio) {
-        this.id = Integer.parseInt(codigo);
-        this.nombre = nombre;
-        this.stock = cantidad;
-        this.precio = precio;
-    }
-
-    // GETTERS
 
     public int getId() {
         return id;
@@ -45,18 +33,6 @@ public class Producto {
         return stock;
     }
 
-    // Estos dos métodos los usa tu ProductoDAO
-
-    public int getCantidad() {
-        return stock;
-    }
-
-    public String getCodigo() {
-        return String.valueOf(id);
-    }
-
-    // SETTERS
-
     public void setId(int id) {
         this.id = id;
     }
@@ -71,5 +47,10 @@ public class Producto {
 
     public void setStock(int stock) {
         this.stock = stock;
+    }
+
+    @Override
+    public String toString() {
+        return id + " - " + nombre + " (S/ " + precio + ", stock " + stock + ")";
     }
 }

@@ -1,0 +1,111 @@
+CONEXION A LA BASE DE DATOS (PostgreSQL + pgAdmin 4)
+=====================================================
+
+Datos que usa el programa (estan en src/Conexion/Conexion.java):
+
+    Servidor:    localhost
+    Puerto:      5432
+    Base:        inventario
+    Usuario:     postgres
+    Contrasena:  root
+
+IMPORTANTE: todos en el grupo deben usar la contrasena "root" para el usuario
+postgres. Asi nadie tiene que modificar Conexion.java (y no hay conflictos en git).
+Usar "root" solo en tu computador local, nunca en un servidor real.
+
+
+PASO 1. INSTALAR POSTGRESQL
+---------------------------
+1. Descargar el instalador de https://www.postgresql.org/download/windows/
+2. Instalar dejando marcados: PostgreSQL Server, pgAdmin 4 y Command Line Tools.
+3. Cuando el instalador pida la contrasena del superusuario (postgres), escribir:
+       root
+4. Puerto: dejar 5432. Locale: el predeterminado.
+5. Terminar la instalacion.
+
+
+PASO 2. ABRIR pgAdmin 4 Y REGISTRAR EL SERVIDOR
+-----------------------------------------------
+1. Abrir "pgAdmin 4" desde el menu Inicio.
+2. La primera vez pide una "master password". Es solo para proteger pgAdmin
+   (no es la de PostgreSQL). Ponerle una y anotarla.
+3. En el panel izquierdo, clic derecho en "Servers" -> Register -> Server.
+   (Si ya aparece "PostgreSQL 18" o similar, basta con hacerle doble clic e
+   ingresar la contrasena root.)
+4. Pestana General:
+       Name: PostgreSQL
+5. Pestana Connection:
+       Host name/address:     localhost
+       Port:                  5432
+       Maintenance database:  postgres
+       Username:              postgres
+       Password:              root
+       Marcar "Save password"
+6. Pulsar Save. Debe aparecer el servidor con un icono de elefante conectado.
+
+
+PASO 3. CREAR LA BASE DE DATOS "inventario"
+-------------------------------------------
+1. Clic derecho en "Databases" -> Create -> Database...
+2. Database: inventario   (escrito exactamente asi, en minusculas)
+3. Save.
+
+
+PASO 4. CARGAR LAS TABLAS Y LOS DATOS
+-------------------------------------
+Opcion A (recomendada, script SQL):
+1. Clic derecho en la base "inventario" -> Query Tool.
+2. Boton "Open File" (icono de carpeta) -> elegir  database/inventario.sql
+3. Ejecutar con F5 (o el boton de play).
+
+Opcion B (respaldo):
+1. Clic derecho en "inventario" -> Restore...
+2. Format: Custom or tar. Filename: database/inventario.backup
+   (cambiar el filtro a "All files" para verlo).
+3. Restore.
+
+Comprobar: inventario -> Schemas -> public -> Tables -> productos ->
+clic derecho -> View/Edit Data -> All Rows. Deben verse los productos.
+
+
+PASO 5. EL DRIVER (.jar) EN NETBEANS
+------------------------------------
+El driver ya viene en el proyecto: lib/postgresql-42.7.13.jar, con ruta relativa.
+No hay que descargarlo ni configurar nada. Si NetBeans lo marca en rojo:
+   clic derecho en el proyecto -> Clean and Build.
+Si sigue en rojo: Properties -> Libraries -> Classpath -> quitar el jar roto ->
+Add JAR/Folder -> lib/postgresql-42.7.13.jar (marcar "Relative Path").
+
+
+PASO 6. EJECUTAR
+----------------
+1. Abrir la carpeta Algoritmo_proyect en NetBeans (File -> Open Project).
+2. Ejecutar LoginForm (clic derecho -> Run File, o F6 si es la clase principal).
+3. Iniciar sesion:  Usuario1  /  1590
+
+
+SI ALGO FALLA
+-------------
+- "No suitable driver": el .jar no esta en el classpath (ver Paso 5).
+- "la autentificacion password fallo": la contrasena de postgres no es "root".
+- "database inventario does not exist": falta el Paso 3.
+- "Connection refused": el servicio de PostgreSQL esta apagado. Abrir Servicios de
+  Windows (services.msc), buscar "postgresql-x64-18" y pulsar Iniciar.
+- La tabla sale vacia o no existe: falta el Paso 4.
+- El programa ahora muestra un mensaje de error de base de datos con el detalle.
+
+
+SI OLVIDASTE LA CONTRASENA DE postgres
+--------------------------------------
+No se puede ver (esta cifrada), pero si se puede restablecer sin reinstalar.
+PowerShell como Administrador:
+
+ 1. Copy-Item "C:\Program Files\PostgreSQL\18\data\pg_hba.conf" "C:\Program Files\PostgreSQL\18\data\pg_hba.conf.bak"
+ 2. notepad "C:\Program Files\PostgreSQL\18\data\pg_hba.conf"
+    En las lineas de 127.0.0.1/32 y ::1/128 cambiar  scram-sha-256  por  trust.  Guardar.
+ 3. Restart-Service postgresql-x64-18
+ 4. & "C:\Program Files\PostgreSQL\18\bin\psql.exe" -h localhost -U postgres -c "ALTER USER postgres WITH PASSWORD 'root';"
+ 5. Copy-Item "C:\Program Files\PostgreSQL\18\data\pg_hba.conf.bak" "C:\Program Files\PostgreSQL\18\data\pg_hba.conf" -Force
+ 6. Restart-Service postgresql-x64-18
+
+(Cambiar "18" por tu version de PostgreSQL si es distinta.)

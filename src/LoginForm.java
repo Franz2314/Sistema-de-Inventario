@@ -125,7 +125,6 @@ public class LoginForm extends javax.swing.JFrame {
             Sistema sistema = new Sistema();
             sistema.setVisible(true);
             this.dispose();
-            this.dispose();
         } else {
             lblMensaje.setForeground(java.awt.Color.RED);
             lblMensaje.setText("❌ Usuario o contraseña incorrectos.");

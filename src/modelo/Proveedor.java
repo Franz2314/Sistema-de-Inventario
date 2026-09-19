@@ -1,6 +1,6 @@
 package modelo;
 
-public class Proveedor implements Gestionable, Reportable {
+public class Proveedor {
 
     private String id;
     private String nombre;
@@ -12,21 +12,6 @@ public class Proveedor implements Gestionable, Reportable {
         this.nombre = nombre;
         this.telefono = telefono;
         this.correo = correo;
-    }
-
-    @Override
-    public void guardar() {
-        System.out.println("Proveedor " + nombre + " guardado correctamente.");
-    }
-
-    @Override
-    public void eliminar() {
-        System.out.println("Proveedor " + nombre + " eliminado del sistema.");
-    }
-
-    @Override
-    public void generarReporte() {
-        System.out.println("Generando reporte del proveedor: " + nombre);
     }
 
     public String getId() {
