@@ -10,8 +10,7 @@ Aplicación Java Swing (NetBeans) con PostgreSQL.
 | `test/` | Pruebas de las estructuras de datos. |
 | `lib/` | Librerías externas (driver JDBC de PostgreSQL). Va dentro de git para que todo el grupo lo tenga. |
 | `database/` | Base de datos: `inventario.sql` (script legible) e `inventario.backup` (respaldo para pgAdmin). |
-| `docs/entregas/` | Documento del curso (plantilla, avances). |
-| `docs/referencia/` | PDFs de referencia (Inventario, boleta). |
+| `boletas/` | Carpeta donde el sistema guarda las boletas y los reportes de inventario que genera. El contenido no se sube a git. |
 | `nbproject/` | Configuración de NetBeans. No editar a mano. |
 
 ## Puesta en marcha

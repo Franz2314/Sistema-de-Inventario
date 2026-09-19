@@ -6,8 +6,8 @@ trabaje con el mismo criterio. Fecha de estos cambios: 19-09-2026.
 ## 1. Qué es el proyecto
 
 Sistema de inventario en Java Swing (NetBeans, proyecto Ant) con PostgreSQL, para el
-curso *Algoritmos y Estructuras de Datos* (UTP). El documento del curso está en
-`docs/entregas/` (el .md pide MySQL, pero el docente aceptó PostgreSQL).
+curso *Algoritmos y Estructuras de Datos* (UTP). El documento del curso ya no está en el repo
+(se quitó `docs/`; sigue en el historial de git, commit `4a2dbcb`) (el .md pide MySQL, pero el docente aceptó PostgreSQL).
 
 Conexión a la base: ver `CONECCION A LA BD.txt` (usuario `postgres`, contraseña `root`,
 base `inventario`). Resumen de carpetas en `README.md`.
@@ -66,9 +66,7 @@ Algoritmo_proyect/
   src/ test/ nbproject/      (sin mover, para no romper NetBeans)
   lib/                       driver JDBC postgresql-42.7.13.jar (ruta relativa)
   database/                  inventario.sql (script) e inventario.backup (antes "Inventario_pryect")
-  docs/entregas/             plantilla del curso (.md/.pdf)
-  docs/referencia/           Inventario.pdf, boleta.pdf
-  docs/REPORTE_SESION_IA.md  reporte de la primera sesión con IA
+  boletas/                   salida: boletas y reportes de inventario que genera el sistema
   README.md
   CONECCION A LA BD.txt
   CAMBIOS_Y_CONTEXTO.md
@@ -98,3 +96,12 @@ java -cp out estructuras.PruebasUnidades2a4
 ```
 
 Resultado esperado: 35/35 y 48/48 pruebas correctas.
+
+## 7. Carpeta `boletas/` (cambio posterior)
+
+Se eliminó `docs/` y se creó `boletas/`. El sistema debe guardar ahí, al pulsar el botón
+correspondiente, las boletas y el reporte de inventario. La carpeta está en git solo con
+`.gitkeep`; su contenido generado se ignora (`.gitignore`). **Aún no está programada la
+generación**: falta implementar los botones que escriban en `boletas/`.
+El PDF/MD del curso y el reporte de la primera sesión se pueden recuperar con
+`git show 4a2dbcb:docs/...`.

@@ -8,3 +8,6 @@ nbproject/private
 *.class
 *.log
 *.tmp
+# Boletas y reportes generados por el sistema (se conserva la carpeta, no su contenido)
+boletas/*
+!boletas/.gitkeep
